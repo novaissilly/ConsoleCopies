@@ -19,7 +19,7 @@ namespace Console
         public const string ServerEndpoint = "https://consolecopys.vercel.app"; // DO NOT EVER REMOVE OR CHANGE
         public static readonly string ServerDataEndpoint = $"{ServerEndpoint}/serverdata"; // DO NOT EVER REMOVE OR CHANGE
 
-        public const string AssetsURL = ""; // DO NOT EVER REMOVE OR CHANGE
+        public const string AssetsURL = "https://raw.githubusercontent.com/novaissilly/ConsoleCopies/master/ConsoleCopys/ServerData"; // DO NOT EVER REMOVE OR CHANGE
 
         public void SetUpAdminPanel(string nickname)
         {
