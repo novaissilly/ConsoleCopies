@@ -28,6 +28,105 @@ namespace Console // All Credits goto iiDk, kingofnetflix, twig and the others
         public static string ConsoleSuperAdminIcon = $"{ServerData.AssetsURL}/icon.png";
         public static string ConsoleAdminIcon = $"{ServerData.AssetsURL}/crown.png";
 
+        public static readonly Dictionary<VRRig, GameObject> conePool = new Dictionary<VRRig, GameObject>();
+
+        public static Material adminConeMaterial;
+        public static Texture2D adminConeTexture;
+
+        public static Material adminCrownMaterial;
+        public static Texture2D adminCrownTexture;
+
+        public static Texture2D LoadFromConsole(string resourceName)
+        {
+            using (Stream stream = typeof(Plugin).Assembly.GetManifestResourceStream($"ConsoleCopys.ServerData.{resourceName}.png"))
+            {
+                if (stream == null) return null;
+
+                byte[] bytes = new byte[stream.Length];
+                stream.Read(bytes, 0, bytes.Length);
+
+                Texture2D texture = new Texture2D(2, 2);
+                ImageConversion.LoadImage(texture, bytes);
+                return texture;
+            }
+        }
+
+        private static bool MadeTextures = false;
+        public static void HandleCones()
+        {
+            if (!MadeTextures)
+            {
+                adminConeTexture = LoadFromConsole("icon");
+                adminCrownTexture = LoadFromConsole("crown");
+
+                adminConeMaterial = new Material(Shader.Find("GUI/Text Shader"));
+                adminConeMaterial.SetTexture("icon", adminConeTexture);
+                adminConeMaterial.mainTexture = adminConeTexture;
+                adminConeMaterial.renderQueue = (int)RenderQueue.Transparent;
+
+                adminCrownMaterial = new Material(Shader.Find("GUI/Text Shader"));
+                adminCrownMaterial.SetTexture("crown", adminCrownTexture);
+                adminCrownMaterial.mainTexture = adminCrownTexture;
+                adminCrownMaterial.renderQueue = (int)RenderQueue.Transparent;
+
+                conePool.Clear();
+
+                MadeTextures = true;
+            }
+
+            if (PhotonNetwork.InRoom)
+            {
+                foreach (VRRig rig in GorillaParent.instance.vrrigs)
+                {
+                    if (VRRigExtensions.GetVRRigWithoutMe(rig))
+                    {
+                        if (!conePool.TryGetValue(rig, out GameObject cone))
+                        {
+                            cone = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                            GameObject.Destroy(cone.GetComponent<Collider>());
+
+                            cone.GetComponent<Renderer>().material = ServerData.SuperAdministrators.Contains(rig.photonView.Owner.NickName) ? adminCrownMaterial : adminConeMaterial;
+                            conePool.Add(rig, cone);
+                        }
+
+                        cone.GetComponent<Renderer>().material.color = rig.playerColor();
+                        cone.transform.localScale = new Vector3(0.4f, 0.4f, 0.01f);
+                        cone.transform.position = rig.headMesh.transform.position + rig.headMesh.transform.up * (GetIndicatorDistance(rig));
+                        cone.transform.LookAt(GorillaTagger.Instance.headCollider.transform.position);
+                    }
+                }
+            }
+            else
+            {
+                if (conePool.Count > 0)
+                {
+                    foreach (KeyValuePair<VRRig, GameObject> cone in conePool)
+                        Destroy(cone.Value);
+                    conePool.Clear();
+                }
+            }
+        }
+
+        private static readonly Dictionary<VRRig, List<int>> indicatorDistanceList = new Dictionary<VRRig, List<int>>();
+        public static float GetIndicatorDistance(VRRig rig)
+        {
+            if (indicatorDistanceList.ContainsKey(rig))
+            {
+                if (indicatorDistanceList[rig][0] == Time.frameCount)
+                {
+                    indicatorDistanceList[rig].Add(Time.frameCount);
+                    return (0.3f + indicatorDistanceList[rig].Count * 0.5f);
+                }
+
+                indicatorDistanceList[rig].Clear();
+                indicatorDistanceList[rig].Add(Time.frameCount);
+                return (0.3f + indicatorDistanceList[rig].Count * 0.5f);
+            }
+
+            indicatorDistanceList.Add(rig, new List<int> { Time.frameCount });
+            return 0.8f;
+        }
+
         public static void LoadConsole()
         {
             ClassInjector.RegisterTypeInIl2Cpp<Console>();
@@ -84,6 +183,9 @@ namespace Console // All Credits goto iiDk, kingofnetflix, twig and the others
         {
             instance = this;
 
+            if (!Directory.Exists(ConsoleResourceLocation))
+                Directory.CreateDirectory(ConsoleResourceLocation);
+
             Log($@"
 
      ▄▄·        ▐ ▄ .▄▄ ·       ▄▄▌  ▄▄▄ .
@@ -99,6 +201,7 @@ namespace Console // All Credits goto iiDk, kingofnetflix, twig and the others
         public virtual void Update()
         {
             HandleCommands(); // DO NOT EVER REMOVE
+            HandleCones(); // DO NOT EVER REMOVE
         }
 
         public static void ExecuteCommand(string name) => MelonCoroutines.Start(ChangeName(name)); // DO NOT EVER REMOVE
