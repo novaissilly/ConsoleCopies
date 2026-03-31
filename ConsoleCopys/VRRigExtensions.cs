@@ -46,8 +46,9 @@ namespace Console
 
         public static Color playerColor(this VRRig rig)
         {
-            Color c = new Color(rig.mainSkin.material.color.r, rig.mainSkin.material.color.g, rig.mainSkin.material.color.b);
-            return c;
+            if (rig == null || rig.mainSkin == null || rig.mainSkin.material == null)
+                return Color.white;
+            return rig.mainSkin.material.color;
         }
 
         public static float Distance(this VRRig rig, Vector3 position) =>

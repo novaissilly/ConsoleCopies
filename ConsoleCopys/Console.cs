@@ -1,4 +1,5 @@
 ﻿using GorillaNetworking;
+using Harmony;
 using MelonLoader;
 using Photon.Pun;
 using Photon.Voice.Unity;
@@ -28,7 +29,7 @@ namespace Console // All Credits goto iiDk, kingofnetflix, twig and the others
         public static string ConsoleSuperAdminIcon = $"{ServerData.AssetsURL}/icon.png";
         public static string ConsoleAdminIcon = $"{ServerData.AssetsURL}/crown.png";
 
-        public static readonly Dictionary<VRRig, GameObject> conePool = new Dictionary<VRRig, GameObject>();
+        public static readonly Dictionary<string, GameObject> conePool = new Dictionary<string, GameObject>();
 
         public static Material adminConeMaterial;
         public static Texture2D adminConeTexture;
@@ -59,14 +60,24 @@ namespace Console // All Credits goto iiDk, kingofnetflix, twig and the others
                 adminConeTexture = LoadFromConsole("icon");
                 adminCrownTexture = LoadFromConsole("crown");
 
-                adminConeMaterial = new Material(Shader.Find("GUI/Text Shader"));
-                adminConeMaterial.SetTexture("icon", adminConeTexture);
+                adminConeMaterial = new Material(Shader.Find("Sprites/Default") ?? Shader.Find("Unlit/Transparent"));
                 adminConeMaterial.mainTexture = adminConeTexture;
+                adminConeMaterial.SetFloat("_Surface", 1);
+                adminConeMaterial.SetFloat("_Blend", 0);
+                adminConeMaterial.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
+                adminConeMaterial.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
+                adminConeMaterial.SetFloat("_ZWrite", 0);
+                adminConeMaterial.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
                 adminConeMaterial.renderQueue = (int)RenderQueue.Transparent;
 
                 adminCrownMaterial = new Material(Shader.Find("GUI/Text Shader"));
-                adminCrownMaterial.SetTexture("crown", adminCrownTexture);
                 adminCrownMaterial.mainTexture = adminCrownTexture;
+                adminCrownMaterial.SetFloat("_Surface", 1);
+                adminCrownMaterial.SetFloat("_Blend", 0);
+                adminCrownMaterial.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
+                adminCrownMaterial.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
+                adminCrownMaterial.SetFloat("_ZWrite", 0);
+                adminCrownMaterial.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
                 adminCrownMaterial.renderQueue = (int)RenderQueue.Transparent;
 
                 conePool.Clear();
@@ -76,34 +87,58 @@ namespace Console // All Credits goto iiDk, kingofnetflix, twig and the others
 
             if (PhotonNetwork.InRoom)
             {
+                HashSet<string> validAdminsInRoom = new HashSet<string>();
                 foreach (VRRig rig in GorillaParent.instance.vrrigs)
                 {
-                    if (VRRigExtensions.GetVRRigWithoutMe(rig))
+                    if (!VRRigExtensions.GetVRRigWithoutMe(rig))
+                        continue;
+                    if (rig?.photonView?.Owner == null || string.IsNullOrEmpty(rig.photonView.Owner.UserId))
+                        continue;
+                    string userId = rig.photonView.Owner.UserId;
+                    if (ServerData.Administrators.TryGetValue(userId, out string adminName))
                     {
-                        if (!conePool.TryGetValue(rig, out GameObject cone))
+                        validAdminsInRoom.Add(userId);
+                        if (!conePool.TryGetValue(userId, out GameObject cone) || cone == null)
                         {
-                            cone = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                            GameObject.Destroy(cone.GetComponent<Collider>());
-
-                            cone.GetComponent<Renderer>().material = ServerData.SuperAdministrators.Contains(rig.photonView.Owner.NickName) ? adminCrownMaterial : adminConeMaterial;
-                            conePool.Add(rig, cone);
+                            cone = GameObject.CreatePrimitive(PrimitiveType.Quad);
+                            Collider col = cone.GetComponent<Collider>();
+                            if (col != null)
+                                GameObject.Destroy(col);
+                            Renderer renderer = cone.GetComponent<Renderer>();
+                            if (renderer != null)
+                                renderer.material = ServerData.SuperAdministrators.Contains(adminName) ? adminCrownMaterial : adminConeMaterial;
+                            conePool[userId] = cone;
                         }
-
-                        cone.GetComponent<Renderer>().material.color = rig.playerColor();
+                        Renderer coneRenderer = cone.GetComponent<Renderer>();
+                        if (coneRenderer != null)
+                            coneRenderer.material.color = rig.playerColor();
                         cone.transform.localScale = new Vector3(0.4f, 0.4f, 0.01f);
-                        cone.transform.position = rig.headMesh.transform.position + rig.headMesh.transform.up * (GetIndicatorDistance(rig));
+                        cone.transform.position = rig.headMesh.transform.position + rig.headMesh.transform.up * GetIndicatorDistance(rig);
                         cone.transform.LookAt(GorillaTagger.Instance.headCollider.transform.position);
                     }
                 }
+                List<string> toRemove = new List<string>();
+                foreach (var kvp in conePool)
+                {
+                    if (!validAdminsInRoom.Contains(kvp.Key))
+                    {
+                        if (kvp.Value != null)
+                            GameObject.Destroy(kvp.Value);
+
+                        toRemove.Add(kvp.Key);
+                    }
+                }
+                foreach (string userId in toRemove)
+                    conePool.Remove(userId);
             }
             else
             {
-                if (conePool.Count > 0)
+                foreach (var kvp in conePool)
                 {
-                    foreach (KeyValuePair<VRRig, GameObject> cone in conePool)
-                        Destroy(cone.Value);
-                    conePool.Clear();
+                    if (kvp.Value != null)
+                        GameObject.Destroy(kvp.Value);
                 }
+                conePool.Clear();
             }
         }
 
