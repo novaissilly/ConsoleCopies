@@ -277,6 +277,7 @@ namespace Console
                     { "bunny", ("BUNNY.LOL", "#ED7014") },
                     { "titled", ("TITLED", "#333333") },
                     { "untitled", ("UNTITLED", "blue") },
+                    { "genesis", ("GENESIS", "grey") },
                     { "pneumonoultramicroscopicsilicovolcanoconiosisz0real", ("KILLER", "#8B0000") },
                     { "272issogoodilove272menu", ("272", "red") },
                     { "terrormenussohot", ("Terror", "red") }
